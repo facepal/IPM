@@ -12,12 +12,23 @@ library(stringr)
 # 1. Data Import
 # --------------------------
 # Import mutual fund return data
-data <- read_xlsx("D:\\Studia\\5 rok\\IPM\\Project_IPM\\Data_IPM.xlsx", 
-                  sheet = "Return_Index")
-data$Date <- as.Date(data$Date)
+data <- read_xlsx("D:\\Studia\\5 rok\\IPM\\Project_IPM\\Data_IPM_1.xlsx", 
+                  sheet = "Return_Index" ,
+                  col_types = c("date", "numeric", "numeric", 
+                                "numeric", "numeric", "numeric","numeric", "numeric", "numeric", 
+                                "numeric", "numeric", "numeric","numeric", "numeric", "numeric", 
+                                "numeric", "numeric", "numeric", "numeric", "numeric", "numeric")) %>% 
+  filter(Date >= as.Date("2007-12-01") & Date <= as.Date("2023-12-31")) 
+
 
 # Restrict data to 15 years until December 2023
 data <- data %>% filter(Date >= as.Date("2007-12-01") & Date <= as.Date("2023-12-31"))
+
+# Identify columns related to Fidelity Magellan
+fidelity_cols <- grep("FIDELITY MAGELLAN", names(data), value = TRUE)
+
+# Drop these columns from factor_data
+data <- data %>% select(-all_of(fidelity_cols))
 
 # Calculate monthly returns from total return indices
 monthly_data <- data %>%
@@ -41,7 +52,7 @@ assets_data <- read_xlsx("D:\\Studia\\5 rok\\IPM\\Project_IPM\\Data_IPM.xlsx",
                "numeric", "numeric", "numeric", "numeric", "numeric", "numeric")) %>% 
   filter(Date >= as.Date("2007-12-01") & Date <= as.Date("2023-12-31")) 
 
-# Align assets data to monthly (assuming it's also daily and needs similar monthly selection)
+# Align assets data to monthly
 assets_monthly <- assets_data %>%
   group_by(month = floor_date(Date, "month")) %>%
   filter(Date == max(Date, na.rm = TRUE)) %>%
@@ -87,12 +98,6 @@ factor_data <- ff_factors %>%
 factor_data <- factor_data %>%
   mutate(across(where(is.character), as.numeric))
 
-# Identify columns related to Fidelity Magellan
-fidelity_cols <- grep("FIDELITY MAGELLAN", names(factor_data), value = TRUE)
-
-# Drop these columns from factor_data
-factor_data <- factor_data %>% select(-all_of(fidelity_cols))
-
 
 # Identify funds
 fund_names <- grep("^rm_", names(factor_data), value = TRUE)
@@ -134,13 +139,30 @@ for(i in seq(start_index + window_length - 1, end_index, by = 12)){
   # Check that we have a full 60-month window
   if(nrow(window_data) < window_length) next
   
-  # Estimate alphas for each fund using Fama/French 5-Factor model (example)
-  # You can choose another model if needed.
+  # Estimate alphas for each fund 
+  # You can choose another model if needed. ctrl+sfit+c for multiple row comment 
+  
+  # Fama/French 5-Factor model 
+  # alphas <- sapply(fund_names, function(fund){
+  #   model <- lm(window_data[[fund]] ~ Mkt.RF + SMB + HML + RMW + CMA,
+  #               data = window_data)
+  #   coef(model)[1]
+  # })
+  
+  # Single Index Model 
+  # alphas <- sapply(fund_names, function(fund){
+  #   model <- lm(window_data[[fund]] ~ Mkt.RF,
+  #               data = window_data)
+  #   coef(model)[1]
+  # })
+  
+  # Q5 Model
   alphas <- sapply(fund_names, function(fund){
-    model <- lm(window_data[[fund]] ~ Mkt.RF + SMB + HML + RMW + CMA, 
+    model <- lm(window_data[[fund]] ~ R_MKT + R_ME + R_IA + R_ROE + R_EG,
                 data = window_data)
     coef(model)[1]
   })
+  
   names(alphas) <- fund_names
   
   # Rank funds by alpha
@@ -325,4 +347,119 @@ ggplot(portfolio_cumulative, aes(x = year, y = cumulative_return, color = portfo
 # This plot will give you two panels (one for Equal and one for Value) 
 # and lines for Top5 and Bottom5 in each panel.
 
+#### Funds ranking ####
 
+# After you have populated `results_list` as in your previous code,
+# you can create a points ranking as follows:
+
+# Initialize an empty list or environment to store points
+fund_points <- list()
+
+# Loop through each period in results_list
+for(period_end in names(results_list)) {
+  # Extract the top 5 funds for the period
+  top5 <- results_list[[period_end]]$top5
+  
+  # Assign points: 1st = 5, 2nd = 4, 3rd = 3, 4th = 2, 5th = 1
+  for (i in seq_along(top5)) {
+    fund <- top5[i]
+    pts <- 6 - i  # For i=1 (1st place), pts=5; i=2 ->4; ... i=5 ->1
+    
+    # Accumulate points for the fund
+    if (!fund %in% names(fund_points)) {
+      fund_points[[fund]] <- pts
+    } else {
+      fund_points[[fund]] <- fund_points[[fund]] + pts
+    }
+  }
+}
+
+# Convert the accumulated points into a data frame
+fund_points_df <- data.frame(
+  Fund = names(fund_points),
+  Points = unlist(fund_points),
+  stringsAsFactors = FALSE
+)
+
+# Sort the data frame by points in descending order
+fund_points_df <- fund_points_df[order(-fund_points_df$Points), ]
+
+# Extract the overall top 5 funds
+final_top5_funds <- head(fund_points_df, 5)
+
+# Print the final top 5 funds based on accumulated points
+print(final_top5_funds)
+
+# If you want to plot the distribution of points for all funds,
+# you could use a bar plot or another visualization. For example:
+library(ggplot2)
+
+ggplot(fund_points_df, aes(x = reorder(Fund, Points), y = Points)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Fund Ranking Based on Accumulated Points",
+       x = "Fund",
+       y = "Points") +
+  theme_minimal(base_size = 14)
+
+
+#### Total returns of 5 best portfolios #### 
+
+
+# Filter the date range
+data <- data %>%
+  filter(Date >= as.Date("2008-01-01") & Date <= as.Date("2023-12-31"))
+
+# Remove " - TOT RETURN IND" from column names
+colnames(data) <- gsub(" - TOT RETURN IND", "", colnames(data))
+
+# Identify fund columns (all except "Date")
+fund_cols <- setdiff(names(data), "Date")
+
+# Convert data to long format for easier manipulation
+long_data <- data %>%
+  pivot_longer(cols = all_of(fund_cols), names_to = "Fund", values_to = "Index")
+
+# Compute total return for each fund: (Final/Initial - 1)
+final_cumulative_returns <- long_data %>%
+  group_by(Fund) %>%
+  summarize(Final_Value = last(Index),
+            First_Value = first(Index),
+            Total_Return = Final_Value / First_Value - 1) %>%
+  ungroup() %>%
+  arrange(desc(Total_Return))
+
+# Select top 5 funds
+top5_funds <- head(final_cumulative_returns$Fund, 5)
+
+# Filter the original long data for these top 5 and normalize their index
+top5_data <- long_data %>%
+  filter(Fund %in% top5_funds) %>%
+  group_by(Fund) %>%
+  mutate(Normalized = Index / first(Index)) %>%
+  ungroup()
+
+library(scales)
+
+# Sort funds by total return, descending
+final_cumulative_returns <- final_cumulative_returns %>%
+  arrange(desc(Total_Return))
+
+# Add a "Label" column with percentage format to be used as text labels on the plot.
+final_cumulative_returns <- final_cumulative_returns %>%
+  mutate(Label = paste0(round(Total_Return * 100, 1), "%"))
+
+# Create a bar plot and add value labels
+ggplot(final_cumulative_returns, aes(x = reorder(Fund, Total_Return), y = Total_Return)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +  # Flip coordinates so the funds are listed vertically
+  scale_y_continuous(labels = percent_format(accuracy = 0.1)) +
+  geom_text(aes(label = Label),
+            hjust = -0.1,        # Move labels slightly to the right of the bar
+            size = 3) +
+  labs(title = "Total Return (2008-2023)", 
+       x = "Fund", 
+       y = "Total Return") +
+  theme_minimal(base_size = 14) +
+  # Expand the Y limits so that labels don't overlap with the plot's boundary
+  expand_limits(y = max(final_cumulative_returns$Total_Return) * 1.1)
