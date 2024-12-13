@@ -12,23 +12,14 @@ library(stringr)
 # 1. Data Import
 # --------------------------
 # Import mutual fund return data
-data <- read_xlsx("D:\\Studia\\5 rok\\IPM\\Project_IPM\\Data_IPM_1.xlsx", 
+data <- read_xlsx("D:\\Studia\\5 rok\\IPM\\Project_IPM\\Data_IPM.xlsx", 
                   sheet = "Return_Index" ,
                   col_types = c("date", "numeric", "numeric", 
                                 "numeric", "numeric", "numeric","numeric", "numeric", "numeric", 
                                 "numeric", "numeric", "numeric","numeric", "numeric", "numeric", 
                                 "numeric", "numeric", "numeric", "numeric", "numeric", "numeric")) %>% 
-  filter(Date >= as.Date("2007-12-01") & Date <= as.Date("2023-12-31")) 
+  filter(Date >= as.Date("2008-12-01") & Date <= as.Date("2023-12-31")) 
 
-
-# Restrict data to 15 years until December 2023
-data <- data %>% filter(Date >= as.Date("2007-12-01") & Date <= as.Date("2023-12-31"))
-
-# Identify columns related to Fidelity Magellan
-fidelity_cols <- grep("FIDELITY MAGELLAN", names(data), value = TRUE)
-
-# Drop these columns from factor_data
-data <- data %>% select(-all_of(fidelity_cols))
 
 # Calculate monthly returns from total return indices
 monthly_data <- data %>%
@@ -50,7 +41,7 @@ assets_data <- read_xlsx("D:\\Studia\\5 rok\\IPM\\Project_IPM\\Data_IPM.xlsx",
              "numeric", "numeric", "numeric","numeric", "numeric", "numeric", 
                "numeric", "numeric", "numeric","numeric", "numeric", "numeric", 
                "numeric", "numeric", "numeric", "numeric", "numeric", "numeric")) %>% 
-  filter(Date >= as.Date("2007-12-01") & Date <= as.Date("2023-12-31")) 
+  filter(Date >= as.Date("2009-01-01") & Date <= as.Date("2023-12-31")) 
 
 # Align assets data to monthly
 assets_monthly <- assets_data %>%
@@ -70,7 +61,7 @@ ff_factors <- ff_factors %>%
          RMW = RMW/100,
          CMA = CMA/100,
          RF = RF/100) %>%
-  filter(Date >= as.Date("2008-01-01") & Date <= as.Date("2023-12-31"))
+  filter(Date >= as.Date("2009-01-01") & Date <= as.Date("2023-12-31"))
 
 # Import Q5 factors
 q5_factors <- read.csv("D:\\Studia\\5 rok\\IPM\\Project_IPM\\q5_factors_monthly_2023.csv") 
@@ -83,7 +74,7 @@ q5_factors <- q5_factors %>%
          R_IA = R_IA / 100,
          R_ROE = R_ROE / 100,
          R_EG = R_EG / 100  )%>%
-  filter(year >= 2008 & year <  2024)
+  filter(year >= 2009 & year <  2024)
 
 # Align dates in monthly_returns
 monthly_returns <- monthly_returns %>%
@@ -112,10 +103,10 @@ window_length <- 60
 all_dates <- sort(unique(factor_data$Date))
 # We will start from a date at least 5 years after the start (e.g., earliest start date)
 # The last window ends at the end of data. After each window, we move 12 months forward.
-# Example: If start is 2008-01-01, first window: 2008-01 to 2012-12, 
-# then next window: 2009-01 to 2013-12, etc.
+# Example: If start is 2098-01-01, first window: 2009-01 to 2013-12, 
+# then next window: 2010-01 to 2014-12, etc.
 # Ensure we have enough data for rolling windows.
-start_index <- which(all_dates == as.Date("2008-01-01"))
+start_index <- which(all_dates == as.Date("2009-01-01"))
 end_index <- length(all_dates)
 
 # We'll iterate by year steps. For each iteration:
@@ -143,11 +134,11 @@ for(i in seq(start_index + window_length - 1, end_index, by = 12)){
   # You can choose another model if needed. ctrl+sfit+c for multiple row comment 
   
   # Fama/French 5-Factor model 
-  # alphas <- sapply(fund_names, function(fund){
-  #   model <- lm(window_data[[fund]] ~ Mkt.RF + SMB + HML + RMW + CMA,
-  #               data = window_data)
-  #   coef(model)[1]
-  # })
+  alphas <- sapply(fund_names, function(fund){
+    model <- lm(window_data[[fund]] ~ Mkt.RF + SMB + HML + RMW + CMA,
+                data = window_data)
+    coef(model)[1]
+  })
   
   # Single Index Model 
   # alphas <- sapply(fund_names, function(fund){
@@ -157,12 +148,12 @@ for(i in seq(start_index + window_length - 1, end_index, by = 12)){
   # })
   
   # Q5 Model
-  alphas <- sapply(fund_names, function(fund){
-    model <- lm(window_data[[fund]] ~ R_MKT + R_ME + R_IA + R_ROE + R_EG,
-                data = window_data)
-    coef(model)[1]
-  })
-  
+  # alphas <- sapply(fund_names, function(fund){
+  #   model <- lm(window_data[[fund]] ~ R_MKT + R_ME + R_IA + R_ROE + R_EG,
+  #               data = window_data)
+  #   coef(model)[1]
+  # })
+  # 
   names(alphas) <- fund_names
   
   # Rank funds by alpha
@@ -186,8 +177,8 @@ for(i in seq(start_index + window_length - 1, end_index, by = 12)){
 # --------------------------
 # For each period, we have top5 and bottom5 funds. Now we need to measure their ex-post returns.
 # Assuming "ex-post" means the following year after the window end:
-# For example, if window ends at 2012-12, ex-post returns might be from 2013-01 to 2013-12.
-# We'll calculate both equally-weighted and value-weighted returns.
+# For example, if window ends at 2013-12, ex-post returns might be from 2014-01 to 2014-12.
+# We'll calculate both equally-weighted and value-weighted returns
 # --------------------------
 # Revised Ex-Post Performance Computation
 # --------------------------
@@ -218,8 +209,7 @@ for(period_end in names(results_list)){
   
   # Clean up fund names in alphas if needed (assuming already fixed above)
   # Ensure that top5_funds and bottom5_funds are fund names without "(Intercept)"
-  # and correspond to columns in factor_data. If you've implemented the previous fix,
-  # this should already be handled.
+  # and correspond to columns in factor_data.
 
   
   # Prepare asset column names for value-weighted calculation
@@ -283,8 +273,10 @@ for(period_end in names(results_list)){
   }
   
   # Compute monthly portfolio returns using these fixed weights
-  top5_vw_monthly <- apply(ex_post_data[, top5_funds], 1, function(x) sum(weights_top * x, na.rm = TRUE))
-  bottom5_vw_monthly <- apply(ex_post_data[, bottom5_funds], 1, function(x) sum(weights_bottom * x, na.rm = TRUE))
+  top5_vw_monthly <- apply(ex_post_data[, top5_funds], 1, 
+                           function(x) sum(weights_top * x, na.rm = TRUE))
+  bottom5_vw_monthly <- apply(ex_post_data[, bottom5_funds], 1, 
+                              function(x) sum(weights_bottom * x, na.rm = TRUE))
   
   # Annual return = product of (1 + monthly_return) - 1
   top5_vw_annual <- prod(1 + top5_vw_monthly, na.rm = TRUE) - 1
@@ -316,40 +308,38 @@ library(ggplot2)
 library(lubridate)
 
 
-# 1. Convert `year` column to Date format if necessary:
-portfolio_returns <- portfolio_returns %>%
-  mutate(year = as.Date(year)) 
 
-
-# 2. Calculate cumulative returns
+# 1. Calculate cumulative returns
 portfolio_cumulative <- portfolio_returns %>%
   arrange(year) %>% # sort by year
   group_by(portfolio, weight_scheme) %>%
   mutate(cumulative_return = cumprod(1 + annual_return) - 1) %>%
   ungroup()
 
-# Now `portfolio_cumulative` has a `cumulative_return` column that shows how the portfolio grows over time.
+# Now `portfolio_cumulative` has a `cumulative_return` column that 
+# shows how the portfolio grows over time.
 
-# 3. Plot the results
-# A nice plot could have the x-axis as the year, y-axis as the cumulative return,
+# 2. Plot the results
+# plot  have the x-axis as the year, y-axis as the cumulative return,
 # color or linetype by portfolio and facet by weight_scheme.
 
 ggplot(portfolio_cumulative, aes(x = year, y = cumulative_return, color = portfolio)) +
   geom_line(size = 1) +
-  facet_wrap(~ weight_scheme, scales = "free_y") +
+  facet_wrap(~ weight_scheme) +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  labs(title = "Cumulative Returns of Portfolios Over Time",
+  labs(title = "Cumulative Returns of Portfolios Over Time - Fama French 5 Factors model",
        x = "Year",
        y = "Cumulative Return",
        color = "Portfolio") +
-  theme_minimal(base_size = 14)
+  theme(plot.title = element_text(hjust = 0.8)) +
+  theme_minimal(base_size = 14) 
 
 # This plot will give you two panels (one for Equal and one for Value) 
 # and lines for Top5 and Bottom5 in each panel.
 
 #### Funds ranking ####
 
-# After you have populated `results_list` as in your previous code,
+# After you have populated `results_list` as in previous code,
 # you can create a points ranking as follows:
 
 # Initialize an empty list or environment to store points
@@ -392,23 +382,26 @@ print(final_top5_funds)
 
 # If you want to plot the distribution of points for all funds,
 # you could use a bar plot or another visualization. For example:
-library(ggplot2)
+
 
 ggplot(fund_points_df, aes(x = reorder(Fund, Points), y = Points)) +
   geom_col(fill = "steelblue") +
   coord_flip() +
-  labs(title = "Fund Ranking Based on Accumulated Points",
+  geom_text(aes(label = Points),
+            hjust = -0.1, # Adjust this value to position the text
+            size = 3) +
+  labs(title = "Fund Ranking Based on Accumulated Points - Fama French 5 Factors model",
        x = "Fund",
        y = "Points") +
   theme_minimal(base_size = 14)
 
 
-#### Total returns of 5 best portfolios #### 
+#### Total returns of all portfolios #### 
 
 
 # Filter the date range
 data <- data %>%
-  filter(Date >= as.Date("2008-01-01") & Date <= as.Date("2023-12-31"))
+  filter(Date >= as.Date("2014-01-01") & Date <= as.Date("2023-12-31"))
 
 # Remove " - TOT RETURN IND" from column names
 colnames(data) <- gsub(" - TOT RETURN IND", "", colnames(data))
@@ -429,16 +422,6 @@ final_cumulative_returns <- long_data %>%
   ungroup() %>%
   arrange(desc(Total_Return))
 
-# Select top 5 funds
-top5_funds <- head(final_cumulative_returns$Fund, 5)
-
-# Filter the original long data for these top 5 and normalize their index
-top5_data <- long_data %>%
-  filter(Fund %in% top5_funds) %>%
-  group_by(Fund) %>%
-  mutate(Normalized = Index / first(Index)) %>%
-  ungroup()
-
 library(scales)
 
 # Sort funds by total return, descending
@@ -457,8 +440,8 @@ ggplot(final_cumulative_returns, aes(x = reorder(Fund, Total_Return), y = Total_
   geom_text(aes(label = Label),
             hjust = -0.1,        # Move labels slightly to the right of the bar
             size = 3) +
-  labs(title = "Total Return (2008-2023)", 
-       x = "Fund", 
+  labs(title = "Total Return (2014-2023)",
+       x = "Fund",
        y = "Total Return") +
   theme_minimal(base_size = 14) +
   # Expand the Y limits so that labels don't overlap with the plot's boundary
