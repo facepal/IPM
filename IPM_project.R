@@ -103,7 +103,7 @@ window_length <- 60
 all_dates <- sort(unique(factor_data$Date))
 # We will start from a date at least 5 years after the start (e.g., earliest start date)
 # The last window ends at the end of data. After each window, we move 12 months forward.
-# Example: If start is 2098-01-01, first window: 2009-01 to 2013-12, 
+# Example: If start is 2009-01-01, first window: 2009-01 to 2013-12, 
 # then next window: 2010-01 to 2014-12, etc.
 # Ensure we have enough data for rolling windows.
 start_index <- which(all_dates == as.Date("2009-01-01"))
@@ -177,7 +177,7 @@ for(i in seq(start_index + window_length - 1, end_index, by = 12)){
 # --------------------------
 # For each period, we have top5 and bottom5 funds. Now we need to measure their ex-post returns.
 # Assuming "ex-post" means the following year after the window end:
-# For example, if window ends at 2013-12, ex-post returns might be from 2014-01 to 2014-12.
+# For example, if window ends at 2012-12, ex-post returns might be from 2013-01 to 2013-12.
 # We'll calculate both equally-weighted and value-weighted returns
 # --------------------------
 # Revised Ex-Post Performance Computation
